@@ -1,0 +1,275 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Grade My Swarm</title>
+<meta name="description" content="Drop in your agent session log and get a grade. Runs in your browser; nothing is uploaded.">
+<style>
+:root{
+  --bg:#0f1115;--panel:#171a21;--line:#262b36;--text:#e8eaf0;--muted:#9aa3b2;--accent:#7c9cff;
+  --good:#34d399;--ok:#60a5fa;--warn:#fbbf24;--bad:#fb923c;--worst:#f87171;
+}
+@media (prefers-color-scheme: light){
+  :root{--bg:#f6f7f9;--panel:#fff;--line:#e3e6ec;--text:#161a22;--muted:#5d6678;--accent:#3b5bdb;
+    --good:#059669;--ok:#2563eb;--warn:#b45309;--bad:#c2410c;--worst:#b91c1c}
+}
+*{box-sizing:border-box}
+html,body{margin:0;background:var(--bg);color:var(--text);font:16px/1.5 system-ui,-apple-system,Segoe UI,Roboto,sans-serif}
+.wrap{max-width:880px;margin:0 auto;padding:32px 16px 64px}
+h1{font-size:32px;line-height:1.15;margin:0 0 6px;letter-spacing:-.02em}
+.sub{color:var(--muted);margin:0 0 24px}
+.lock{display:inline-block;font-size:13px;color:var(--muted);border:1px solid var(--line);border-radius:999px;padding:2px 10px;margin-bottom:20px}
+.drop{border:2px dashed var(--line);border-radius:16px;padding:40px 20px;text-align:center;background:var(--panel);transition:border-color .15s,background .15s}
+.drop.over{border-color:var(--accent)}
+.drop p{margin:0 0 14px}
+button,.btn{font:inherit;border:1px solid var(--line);background:var(--panel);color:var(--text);padding:8px 16px;border-radius:10px;cursor:pointer}
+button.primary{background:var(--accent);border-color:var(--accent);color:#fff}
+button:hover{filter:brightness(1.08)}
+details{margin-top:16px;color:var(--muted);font-size:14px}
+code{background:var(--panel);border:1px solid var(--line);border-radius:6px;padding:1px 6px;font-size:13px}
+.progress{margin-top:16px;color:var(--muted)}
+.hero{display:flex;gap:24px;align-items:center;background:var(--panel);border:1px solid var(--line);border-radius:16px;padding:24px;flex-wrap:wrap}
+.letter{width:120px;height:120px;border-radius:24px;display:flex;align-items:center;justify-content:center;font-size:64px;font-weight:800;color:#fff;flex:none}
+.hero .meta{flex:1;min-width:220px}
+.hero input{font:inherit;font-size:20px;font-weight:650;width:100%;background:transparent;border:0;border-bottom:1px dashed var(--line);color:var(--text);padding:2px 0}
+.hero .tag{color:var(--muted);margin:6px 0 0}
+.grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:12px;margin:16px 0}
+.stat{background:var(--panel);border:1px solid var(--line);border-radius:12px;padding:12px 14px}
+.stat b{display:block;font-size:22px;letter-spacing:-.01em}
+.stat span{color:var(--muted);font-size:13px}
+h2{font-size:15px;text-transform:uppercase;letter-spacing:.06em;color:var(--muted);margin:28px 0 10px}
+.bar{display:flex;height:22px;border-radius:8px;overflow:hidden;background:var(--line)}
+.bar i{display:block;height:100%}
+.legend{display:flex;flex-wrap:wrap;gap:6px 16px;margin-top:8px;font-size:13px;color:var(--muted)}
+.legend em{display:inline-block;width:10px;height:10px;border-radius:3px;margin-right:6px;vertical-align:-1px;font-style:normal}
+.comp{display:grid;grid-template-columns:110px 1fr 40px;gap:10px;align-items:center;margin:6px 0;font-size:14px}
+.comp .track{height:10px;background:var(--line);border-radius:6px;overflow:hidden}
+.comp .track i{display:block;height:100%}
+.fix{background:var(--panel);border:1px solid var(--line);border-left:4px solid var(--accent);border-radius:10px;padding:12px 14px;margin:10px 0}
+.fix b{display:block}
+.fix span{color:var(--muted);font-size:14px}
+.hl{display:grid;grid-template-columns:repeat(auto-fit,minmax(240px,1fr));gap:12px}
+.hl div{background:var(--panel);border:1px solid var(--line);border-radius:12px;padding:12px 14px;font-size:14px}
+.hl small{display:block;color:var(--muted);text-transform:uppercase;letter-spacing:.06em;font-size:11px;margin-bottom:2px}
+.actions{display:flex;gap:10px;flex-wrap:wrap;margin-top:24px}
+.note{color:var(--muted);font-size:13px;margin-top:28px}
+.hidden{display:none}
+@media (max-width:520px){.comp{grid-template-columns:90px 1fr 34px}.letter{width:96px;height:96px;font-size:50px}}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <h1>Grade my swarm</h1>
+  <p class="sub">Drop in your agent session log. Get a grade, a cost story, and three things to fix.</p>
+  <span class="lock">Runs entirely in your browser. Nothing is uploaded.</span>
+
+  <section id="intake">
+    <div class="drop" id="drop">
+      <p><strong>Drop one or more session logs here</strong> (<code>.jsonl</code>)</p>
+      <button class="primary" id="pick">Choose files</button>
+      <button id="sample">Try an example</button>
+      <input type="file" id="file" accept=".jsonl,.json,.txt" multiple hidden>
+      <div class="progress" id="progress"></div>
+    </div>
+    <details>
+      <summary>Where are my logs?</summary>
+      <p>Claude Code saves each session as a <code>.jsonl</code> file under <code>~/.claude/projects/&lt;project&gt;/</code>.
+      On Windows that is <code>%USERPROFILE%\.claude\projects</code>. Pick the newest file for the run you want to grade.</p>
+    </details>
+  </section>
+
+  <section id="report" class="hidden">
+    <div class="hero">
+      <div class="letter" id="letter">B</div>
+      <div class="meta">
+        <input id="title" aria-label="Run title" placeholder="Name this run">
+        <p class="tag" id="tag"></p>
+      </div>
+    </div>
+    <div class="grid" id="stats"></div>
+
+    <h2>Where the work went</h2>
+    <div class="bar" id="mix"></div>
+    <div class="legend" id="legend"></div>
+
+    <h2>The grade</h2>
+    <div id="comps"></div>
+
+    <h2>Fix these first</h2>
+    <div id="fixes"></div>
+
+    <h2>Highlights</h2>
+    <div class="hl" id="hl"></div>
+
+    <div class="actions">
+      <button class="primary" id="dl">Download share card</button>
+      <button id="copy">Copy summary</button>
+      <button id="again">Grade another</button>
+    </div>
+    <p class="note">Grade v0: transparent but young. Reliability 30%, Focus 25%, Efficiency 30%, Leverage 15%.
+    Dollar figures come from the cost totals recorded in your log.</p>
+  </section>
+</div>
+<script src="grade.js"></script>
+<script>
+(function () {
+  const $ = id => document.getElementById(id);
+  const COLORS = { build: '#34d399', explore: '#60a5fa', run: '#a78bfa', coordinate: '#fbbf24', other: '#94a3b8', recover: '#f87171' };
+  const LABELS = { build: 'Build', explore: 'Explore', run: 'Run & verify', coordinate: 'Coordinate', other: 'Other', recover: 'Recover (failed calls)' };
+  let current = null;
+
+  const money = n => n === null ? 'n/a' : (n >= 100 ? '$' + Math.round(n) : '$' + n.toFixed(2));
+  const num = n => n >= 10000 ? Math.round(n / 1000) + 'K' : n.toLocaleString();
+  function dur(ms) {
+    const m = Math.round(ms / 60000);
+    if (m < 90) return m + ' min';
+    return (m / 60).toFixed(1) + ' hr';
+  }
+  function gradeColor(s) {
+    return s >= 90 ? '#16a34a' : s >= 80 ? '#2563eb' : s >= 70 ? '#d97706' : s >= 60 ? '#ea580c' : '#dc2626';
+  }
+  function tagline(s) {
+    return s >= 90 ? 'A well-run crew.' : s >= 80 ? 'Solid work with a few leaks.' : s >= 70 ? 'Getting there, and leaking money on the way.' :
+      s >= 60 ? 'Busy, but the billing page is nervous.' : 'Chaos with an invoice.';
+  }
+  function agentsLine(r) {
+    const a = r.agents, parts = [a.leads + (a.leads > 1 ? ' lead sessions' : ' lead agent')];
+    if (a.subagents) parts.push(a.subagents + ' sub-agent' + (a.subagents > 1 ? 's' : ''));
+    if (a.helpers) parts.push(a.helpers + ' hidden helper' + (a.helpers > 1 ? 's' : ''));
+    return parts.join(' + ');
+  }
+
+  function render(r) {
+    current = r;
+    $('intake').classList.add('hidden');
+    $('report').classList.remove('hidden');
+    if (!r.enough) {
+      $('letter').textContent = '?'; $('letter').style.background = '#64748b';
+      $('title').value = r.title || '';
+      $('tag').textContent = 'Not enough activity to grade. Try a longer session.';
+      $('stats').innerHTML = $('mix').innerHTML = $('legend').innerHTML = $('comps').innerHTML = $('fixes').innerHTML = $('hl').innerHTML = '';
+      return;
+    }
+    $('letter').textContent = r.grade;
+    $('letter').style.background = gradeColor(r.score);
+    $('title').value = r.title || '';
+    $('tag').textContent = r.score + '/100. ' + tagline(r.score);
+
+    const stats = [
+      [agentsLine(r), 'agents'],
+      [money(r.cost), r.costPerTurn !== null ? money(r.costPerTurn) + ' per turn' : 'total cost (not in log)'],
+      [dur(r.activeMs), r.spanDays >= 1 ? 'working time over ' + r.spanDays.toFixed(1) + ' days' : 'working time'],
+      [num(r.turns), 'model turns'],
+      [num(r.calls), 'tool calls'],
+      [r.human ? r.leverageRatio.toFixed(1) : 'n/a', 'tool calls per human prompt'],
+      [r.linesAdded ? '+' + num(r.linesAdded) : num(r.filesTouched), r.linesAdded ? 'lines added' : 'files touched'],
+      [num(r.errors), 'failed calls (' + (r.calls ? (100 * r.errors / r.calls).toFixed(1) : 0) + '%)'],
+    ];
+    $('stats').innerHTML = stats.map(s => `<div class="stat"><b>${s[0]}</b><span>${s[1]}</span></div>`).join('');
+
+    const total = r.mixTotal;
+    const slices = [];
+    const recover = r.recover;
+    for (const k of ['build', 'explore', 'run', 'coordinate', 'other']) slices.push([k, r.mix[k]]);
+    slices.push(['recover', recover]);
+    const sum = slices.reduce((a, s) => a + s[1], 0) || 1;
+    $('mix').innerHTML = slices.filter(s => s[1] > 0).map(s => `<i title="${LABELS[s[0]]}" style="width:${100 * s[1] / sum}%;background:${COLORS[s[0]]}"></i>`).join('');
+    $('legend').innerHTML = slices.filter(s => s[1] > 0).map(s => `<span><em style="background:${COLORS[s[0]]}"></em>${LABELS[s[0]]} ${Math.round(100 * s[1] / sum)}%</span>`).join('');
+
+    const cn = { reliability: 'Reliability', focus: 'Focus', efficiency: 'Efficiency', leverage: 'Leverage' };
+    $('comps').innerHTML = Object.keys(cn).map(k => {
+      const v = Math.round(r.components[k]);
+      return `<div class="comp"><span>${cn[k]}</span><div class="track"><i style="width:${v}%;background:${gradeColor(v)}"></i></div><b>${v}</b></div>`;
+    }).join('');
+
+    $('fixes').innerHTML = r.fixes.map((f, i) => `<div class="fix"><b>${i + 1}. ${f.title}</b><span>${f.detail}</span></div>`).join('');
+
+    const hl = [];
+    if (r.mayor) hl.push(['The Mayor', `${r.mayor.tool} made ${Math.round(r.mayor.share * 100)}% of all tool calls (${num(r.mayor.calls)}).`]);
+    for (const h of r.helpers) hl.push(['Hidden helper', `${h.model} ran in the background${h.costUSD ? ' for ' + money(h.costUSD) : ''}${h.web ? ', ' + h.web + ' web searches' : ''}. It never shows up in the conversation.`]);
+    hl.push([r.top20share >= 0.5 ? 'The 80/20' : 'Spend shape', (r.top20share >= 0.5
+      ? `The top 20% of turns drove about ${Math.round(r.top20share * 100)}% of spend.`
+      : `Spend is spread evenly: the top 20% of turns hold about ${Math.round(r.top20share * 100)}%. No runaway turns.`) +
+      (r.topTurnCost !== null ? ` The priciest single turn cost about ${money(r.topTurnCost)}.` : '')]);
+    hl.push(['Context tax', `Each turn re-read about ${num(Math.round(r.ctxPerTurn))} tokens${r.compactions ? '; compacted ' + r.compactions + 'x' : ''}.`]);
+    if (r.autoApproved) hl.push(['Approvals', `${num(r.autoApproved)} permission checks were auto-approved${r.denials ? ', ' + r.denials + ' denied' : ''}.`]);
+    $('hl').innerHTML = hl.map(h => `<div><small>${h[0]}</small>${h[1]}</div>`).join('');
+  }
+
+  function summary() {
+    const r = current, t = $('title').value || 'My swarm';
+    if (!r || !r.enough) return t;
+    return `${t}: ${r.grade} (${r.score}/100). ${agentsLine(r)}, ${money(r.cost)}, ${r.calls} tool calls, ${r.errors} failed. Fix first: ${r.fixes[0].title}. Graded with Grade My Swarm.`;
+  }
+
+  function drawCard() {
+    const r = current, c = document.createElement('canvas');
+    c.width = 1200; c.height = 630;
+    const g = c.getContext('2d');
+    const bg = g.createLinearGradient(0, 0, 1200, 630);
+    bg.addColorStop(0, '#12151c'); bg.addColorStop(1, '#1b2030');
+    g.fillStyle = bg; g.fillRect(0, 0, 1200, 630);
+    const col = gradeColor(r.score);
+    g.fillStyle = col; roundRect(g, 60, 60, 220, 220, 44); g.fill();
+    g.fillStyle = '#fff'; g.font = '800 132px system-ui,Segoe UI,sans-serif'; g.textAlign = 'center'; g.textBaseline = 'middle';
+    g.fillText(r.grade, 170, 175);
+    g.textAlign = 'left'; g.textBaseline = 'alphabetic';
+    g.fillStyle = '#e8eaf0'; g.font = '700 46px system-ui,Segoe UI,sans-serif';
+    g.fillText(clip(g, $('title').value || 'My swarm', 800), 320, 120);
+    g.fillStyle = '#9aa3b2'; g.font = '28px system-ui,Segoe UI,sans-serif';
+    g.fillText(r.score + '/100. ' + tagline(r.score), 320, 166);
+    const facts = [agentsLine(r), money(r.cost) + ' spent', num(r.calls) + ' tool calls, ' + num(r.errors) + ' failed'];
+    g.fillStyle = '#e8eaf0'; g.font = '30px system-ui,Segoe UI,sans-serif';
+    facts.forEach((f, i) => g.fillText(clip(g, f, 820), 320, 226 + i * 40));
+    g.fillStyle = '#7c9cff'; g.font = '700 24px system-ui,Segoe UI,sans-serif';
+    g.fillText('FIX FIRST', 60, 360);
+    g.fillStyle = '#e8eaf0'; g.font = '30px system-ui,Segoe UI,sans-serif';
+    r.fixes.forEach((f, i) => g.fillText((i + 1) + '. ' + clip(g, f.title, 1000), 60, 410 + i * 48));
+    g.fillStyle = '#9aa3b2'; g.font = '24px system-ui,Segoe UI,sans-serif';
+    g.fillText('Grade your swarm: github.com/jtv55/agent-workforce-analytics', 60, 585);
+    return c;
+  }
+  function roundRect(g, x, y, w, h, r) {
+    g.beginPath(); g.moveTo(x + r, y); g.arcTo(x + w, y, x + w, y + h, r); g.arcTo(x + w, y + h, x, y + h, r);
+    g.arcTo(x, y + h, x, y, r); g.arcTo(x, y, x + w, y, r); g.closePath();
+  }
+  function clip(g, s, w) { while (g.measureText(s).width > w && s.length > 1) s = s.slice(0, -2); return s; }
+
+  async function gradeFiles(files) {
+    $('progress').textContent = 'Reading ' + files.length + ' file' + (files.length > 1 ? 's' : '') + '...';
+    try {
+      const r = await Grader.gradeStreams(files.map(f => f.stream()), n => { $('progress').textContent = 'Read ' + n.toLocaleString() + ' records...'; });
+      $('progress').textContent = '';
+      render(r);
+    } catch (e) { $('progress').textContent = 'Could not read that file: ' + e.message; }
+  }
+
+  window.drawShareCard = drawCard;
+  const drop = $('drop');
+  $('pick').onclick = () => $('file').click();
+  $('file').onchange = e => { if (e.target.files.length) gradeFiles([...e.target.files]); };
+  ['dragenter', 'dragover'].forEach(ev => drop.addEventListener(ev, e => { e.preventDefault(); drop.classList.add('over'); }));
+  ['dragleave', 'drop'].forEach(ev => drop.addEventListener(ev, e => { e.preventDefault(); drop.classList.remove('over'); }));
+  drop.addEventListener('drop', e => { if (e.dataTransfer.files.length) gradeFiles([...e.dataTransfer.files]); });
+  $('sample').onclick = () => render(Grader.sampleReport());
+  $('again').onclick = () => { $('report').classList.add('hidden'); $('intake').classList.remove('hidden'); $('file').value = ''; };
+  $('copy').onclick = async () => { try { await navigator.clipboard.writeText(summary()); $('copy').textContent = 'Copied'; setTimeout(() => $('copy').textContent = 'Copy summary', 1500); } catch (e) { prompt('Copy:', summary()); } };
+  $('dl').onclick = () => {
+    if (!current || !current.enough) return;
+    drawCard().toBlob(b => { const a = document.createElement('a'); a.href = URL.createObjectURL(b); a.download = 'swarm-grade.png'; a.click(); setTimeout(() => URL.revokeObjectURL(a.href), 2000); });
+  };
+
+  // Dev/testing convenience: ?log=<url> streams a log from the same origin. Also ?sample=1.
+  const q = new URLSearchParams(location.search);
+  if (q.get('sample')) render(Grader.sampleReport());
+  const logs = q.getAll('log');
+  if (logs.length) {
+    $('progress').textContent = 'Loading...';
+    Promise.all(logs.map(u => fetch(u).then(r => r.body))).then(bodies => Grader.gradeStreams(bodies)).then(r => { $('progress').textContent = ''; render(r); window.__report = r; })
+      .catch(e => { $('progress').textContent = 'Failed: ' + e.message; });
+  }
+})();
+</script>
+</body>
+</html>
