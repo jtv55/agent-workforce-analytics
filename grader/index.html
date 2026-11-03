@@ -54,6 +54,11 @@ h2{font-size:15px;text-transform:uppercase;letter-spacing:.06em;color:var(--mute
 .hl small{display:block;color:var(--muted);text-transform:uppercase;letter-spacing:.06em;font-size:11px;margin-bottom:2px}
 .actions{display:flex;gap:10px;flex-wrap:wrap;margin-top:24px}
 .note{color:var(--muted);font-size:13px;margin-top:28px}
+.row{display:grid;grid-template-columns:52px 1fr 80px 70px;gap:12px;align-items:center;background:var(--panel);border:1px solid var(--line);border-radius:12px;padding:10px 14px;margin:8px 0;cursor:pointer}
+.row:hover{border-color:var(--accent)}
+.row .chip{width:44px;height:44px;border-radius:12px;display:flex;align-items:center;justify-content:center;color:#fff;font-weight:800}
+.row small{display:block;color:var(--muted);font-size:12px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.row .n{text-align:right;font-variant-numeric:tabular-nums}
 .hidden{display:none}
 @media (max-width:520px){.comp{grid-template-columns:90px 1fr 34px}.letter{width:96px;height:96px;font-size:50px}}
 </style>
@@ -68,8 +73,10 @@ h2{font-size:15px;text-transform:uppercase;letter-spacing:.06em;color:var(--mute
     <div class="drop" id="drop">
       <p><strong>Drop one or more session logs here</strong> (<code>.jsonl</code>)</p>
       <button class="primary" id="pick">Choose files</button>
+      <button id="pickdir">Choose a projects folder</button>
       <button id="sample">Try an example</button>
       <input type="file" id="file" accept=".jsonl,.json,.txt" multiple hidden>
+      <input type="file" id="folder" webkitdirectory multiple hidden>
       <div class="progress" id="progress"></div>
     </div>
     <details>
@@ -77,6 +84,13 @@ h2{font-size:15px;text-transform:uppercase;letter-spacing:.06em;color:var(--mute
       <p>Claude Code saves each session as a <code>.jsonl</code> file under <code>~/.claude/projects/&lt;project&gt;/</code>.
       On Windows that is <code>%USERPROFILE%\.claude\projects</code>. Pick the newest file for the run you want to grade.</p>
     </details>
+  </section>
+
+  <section id="board" class="hidden">
+    <div class="grid" id="bstats"></div>
+    <h2>Every session, graded</h2>
+    <div id="rows"></div>
+    <div class="actions"><button id="again2">Grade another</button></div>
   </section>
 
   <section id="report" class="hidden">
@@ -105,6 +119,7 @@ h2{font-size:15px;text-transform:uppercase;letter-spacing:.06em;color:var(--mute
     <div class="actions">
       <button class="primary" id="dl">Download share card</button>
       <button id="copy">Copy summary</button>
+      <button id="back" class="hidden">Back to all sessions</button>
       <button id="again">Grade another</button>
     </div>
     <p class="note">Grade v0: transparent but young. Reliability 30%, Focus 25%, Efficiency 30%, Leverage 15%.
@@ -140,9 +155,13 @@ h2{font-size:15px;text-transform:uppercase;letter-spacing:.06em;color:var(--mute
     return parts.join(' + ');
   }
 
+  let board = null;
+
   function render(r) {
     current = r;
     $('intake').classList.add('hidden');
+    $('board').classList.add('hidden');
+    $('back').classList.toggle('hidden', !board);
     $('report').classList.remove('hidden');
     if (!r.enough) {
       $('letter').textContent = '?'; $('letter').style.background = '#64748b';
@@ -246,6 +265,64 @@ h2{font-size:15px;text-transform:uppercase;letter-spacing:.06em;color:var(--mute
   }
 
   window.drawShareCard = drawCard;
+  // Folder mode: point at ~/.claude/projects and get every session graded.
+  async function gradeFolder(files) {
+    const groups = new Map();
+    const slot = k => groups.get(k) || groups.set(k, { subs: [] }).get(k);
+    for (const f of files) {
+      const p = f.webkitRelativePath || f.name;
+      if (!p.endsWith('.jsonl') || !f.size) continue;
+      const parts = p.split('/'), si = parts.indexOf('subagents');
+      if (si > 0) slot(parts.slice(0, si).join('/')).subs.push(f);
+      else { const g = slot(p.replace(/\.jsonl$/, '')); g.main = f; g.path = p; }
+    }
+    const list = [...groups.values()].filter(g => g.main);
+    const rows = []; let skipped = 0, i = 0;
+    for (const g of list) {
+      $('progress').textContent = 'Grading session ' + (++i) + ' of ' + list.length + '...';
+      let r;
+      try { r = await Grader.gradeStreams([g.main.stream(), ...g.subs.map(s => s.stream())], null, { subagents: g.subs.length }); } catch (e) { skipped++; continue; }
+      if (!r.enough) { skipped++; continue; }
+      const parts = g.path.split('/');
+      rows.push({ r, proj: parts.length > 1 ? parts[parts.length - 2] : '', id: parts[parts.length - 1].replace('.jsonl', '') });
+    }
+    $('progress').textContent = '';
+    if (!rows.length) { $('progress').textContent = 'No gradable sessions found in that folder.'; return; }
+    rows.sort((a, b) => (b.r.startedAt || 0) - (a.r.startedAt || 0));
+    board = { rows, skipped };
+    renderBoard();
+  }
+
+  function renderBoard() {
+    const rows = board.rows;
+    $('intake').classList.add('hidden'); $('report').classList.add('hidden'); $('board').classList.remove('hidden');
+    const cost = rows.reduce((a, x) => a + (x.r.cost || 0), 0);
+    const helper = rows.reduce((a, x) => a + x.r.helpers.reduce((b, h) => b + h.costUSD, 0), 0);
+    const withSub = rows.filter(x => x.r.agents.subagents > 0).length;
+    const avg = Math.round(rows.reduce((a, x) => a + x.r.score, 0) / rows.length);
+    const stats = [
+      [rows.length, 'sessions graded' + (board.skipped ? ' (' + board.skipped + ' too short)' : '')],
+      [money(cost), 'total spend recorded'],
+      [Grader.letter(avg) + ' (' + avg + ')', 'average grade'],
+      [withSub + ' of ' + rows.length, 'sessions that used sub-agents'],
+      [money(helper), 'spent by hidden helpers'],
+    ];
+    $('bstats').innerHTML = stats.map(s => `<div class="stat"><b>${s[0]}</b><span>${s[1]}</span></div>`).join('');
+    $('rows').innerHTML = rows.map((x, i) => {
+      const d = x.r.startedAt ? new Date(x.r.startedAt).toLocaleDateString(undefined, { month: 'short', day: 'numeric' }) : '';
+      return `<div class="row" data-i="${i}"><div class="chip" style="background:${gradeColor(x.r.score)}">${x.r.grade}</div>` +
+        `<div><b>${esc(x.r.title || 'Session ' + x.id.slice(0, 6))}</b><small>${esc(d + ' - ' + x.proj.slice(-34))} - fix first: ${esc(x.r.fixes[0].title)}</small></div>` +
+        `<div class="n">${money(x.r.cost)}</div><div class="n">${num(x.r.turns)} turns</div></div>`;
+    }).join('');
+    document.querySelectorAll('.row').forEach(el => el.onclick = () => render(board.rows[+el.dataset.i].r));
+  }
+  const esc = s => String(s).replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
+
+  $('pickdir').onclick = () => $('folder').click();
+  $('folder').onchange = e => { if (e.target.files.length) gradeFolder([...e.target.files]); };
+  $('back').onclick = () => renderBoard();
+  $('again2').onclick = () => { board = null; $('board').classList.add('hidden'); $('intake').classList.remove('hidden'); $('folder').value = ''; };
+
   const drop = $('drop');
   $('pick').onclick = () => $('file').click();
   $('file').onchange = e => { if (e.target.files.length) gradeFiles([...e.target.files]); };
@@ -253,7 +330,7 @@ h2{font-size:15px;text-transform:uppercase;letter-spacing:.06em;color:var(--mute
   ['dragleave', 'drop'].forEach(ev => drop.addEventListener(ev, e => { e.preventDefault(); drop.classList.remove('over'); }));
   drop.addEventListener('drop', e => { if (e.dataTransfer.files.length) gradeFiles([...e.dataTransfer.files]); });
   $('sample').onclick = () => render(Grader.sampleReport());
-  $('again').onclick = () => { $('report').classList.add('hidden'); $('intake').classList.remove('hidden'); $('file').value = ''; };
+  $('again').onclick = () => { board = null; $('report').classList.add('hidden'); $('intake').classList.remove('hidden'); $('file').value = ''; $('folder').value = ''; };
   $('copy').onclick = async () => { try { await navigator.clipboard.writeText(summary()); $('copy').textContent = 'Copied'; setTimeout(() => $('copy').textContent = 'Copy summary', 1500); } catch (e) { prompt('Copy:', summary()); } };
   $('dl').onclick = () => {
     if (!current || !current.enough) return;

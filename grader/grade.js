@@ -280,7 +280,7 @@
       errors: acc.errors, retries: acc.retries, denials: acc.denials, autoApproved: acc.autoApproved,
       loops: acc.loops, churnFiles, compactions: acc.compactions, ctxPerTurn,
       mix, recover, mixTotal, mayor, top20share, topTurnCost, lightShare, light, topTurns,
-      fixes, records: acc.records,
+      fixes, records: acc.records, startedAt: acc.firstTs,
     };
   }
 
@@ -302,7 +302,8 @@
     if (buf.trim()) onLine(buf);
   }
 
-  async function gradeStreams(streams, onProgress) {
+  // opts.subagents: number of separate sub-agent log files that belong to this run
+  async function gradeStreams(streams, onProgress, opts) {
     const acc = newAcc();
     let n = 0;
     for (const s of streams) {
@@ -314,7 +315,9 @@
         if (onProgress && ++n % 2000 === 0) onProgress(n);
       });
     }
-    return finish(acc);
+    const rep = finish(acc);
+    if (opts && opts.subagents) rep.agents.subagents = Math.max(rep.agents.subagents, opts.subagents);
+    return rep;
   }
 
   // A small synthetic run so people without logs can see what a grade looks like.
