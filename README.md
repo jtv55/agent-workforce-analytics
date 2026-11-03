@@ -12,11 +12,26 @@ Three layers:
 
 Existing benchmarks score the model. This scores the *organization of agents* that used it.
 
-## Try it: Grade My Swarm
+## Try it: Grade My Sessions
 
-Open [grader/index.html](grader/index.html) in a browser and drop in a Claude Code session log (`~/.claude/projects/<project>/<session>.jsonl`). You get a letter grade, a cost story, and three things to fix. It runs entirely in your browser and uploads nothing. No log handy? Click "Try an example."
+Open [grader/index.html](grader/index.html) in a browser and drop in a Claude Code session log (`~/.claude/projects/<project>/<session>.jsonl`), or point it at the whole projects folder to grade every session. You get a letter grade, a cost story, and a coach that reads your log and tells you what to change for better outcomes. It runs entirely in your browser and uploads nothing. No log handy? Click "Try an example."
 
-What it reads from a log: real turns (deduplicated), authoritative cost from the log's own totals, tool calls and failures, repeated-call loops, file churn, context re-read per turn, the model mix, and hidden helper models that are billed but never appear in the conversation.
+Each coaching tip comes with evidence from your log and a prompt you can paste:
+
+| Signal in the log | Coaching |
+|---|---|
+| Huge context re-read per turn, very long session | Hand off to a fresh session |
+| Edits not followed by a test, build, or check | Make the agent prove the work |
+| Prompts that open as corrections | Say what done looks like |
+| Failures, bucketed by cause (code, browser, blocked, network...) | A fix matched to the cause |
+| Repeated identical calls, files rewritten 6+ times | Break the loop |
+| Long read-only research bursts | Hand research to a sub-agent |
+| No commits in a long session | Save checkpoints |
+| Top-tier model on light lookups | Use a smaller model |
+
+It also reads authoritative cost from the log's own totals, and finds hidden helper models that are billed but never appear in the conversation.
+
+**The workforce battery appears when you run a swarm.** Most sessions today are one agent. For those, the page answers "do you need a swarm?" from how much of your work was parallel research. When sub-agents show up, the swarm view takes over.
 
 > Status: design stage. This repo holds the metric model, the agent survey, the telemetry schema, and the go-to-market plan. The MCP server and Claude Code plugin are next.
 
@@ -92,7 +107,7 @@ Specific, hard goals beat "do your best." Scorecards should therefore set explic
 ## Roadmap
 
 - [x] `v0.1` Metric spec, schema (run-scoped), survey, dashboard / Run Story / benchmark specs
-- [x] `v0.2` Grade My Swarm: browser grader for Claude Code session logs (v0 formula, to be calibrated on more logs)
+- [x] `v0.2` Grade My Sessions: browser grader + coach for Claude Code session logs, folder mode (v0 formula, to be calibrated on more logs)
 - [ ] `v0.2.1` Calibrate the grade on logs from ~10 people; sub-agent (swarm) log support
 - [ ] `v0.3` MCP server (`register_agent`, `report_activity`, `submit_survey`, `get_scorecard`) + local live dashboard
 - [ ] `v0.4` Run Story generator + SEI + Claude Code plugin + shareable run card
