@@ -13,6 +13,10 @@ Decisions so far: lead with an **MCP server + Claude Code plugin**, open-core **
 3. **Zero-setup first value.** One install line, then the agent registers and answers the survey itself. The first scorecard should appear in minutes with no config.
 4. **A new vocabulary.** "Title inflation," "regretted attrition," "KTLO tax" for agents. Terms that get repeated spread the category.
 
+## Hero artifact: the Run Story
+
+The share card and landing page lead with the [Run Story](run-story.md): the zoomed-out retrospective of an epic, with a Swarm Efficiency Index. It answers a feeling people already have ("I shipped a lot and lost the plot") and it recurs after every run, which drives repeat use.
+
 ## Viral loop (v1)
 
 ```

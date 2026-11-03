@@ -1,6 +1,16 @@
 # Agent Workforce Analytics
 
-**People analytics for agents.** Instrument a swarm the way a CHRO instruments a workforce: who the mayor is, spans and layers, title inflation, KTLO vs innovation, attrition, cost per head, and the 80/20 of who delivers.
+**A benchmark, live dashboard, and retrospective for agent swarms.** People now ship an epic in a day with AI, then start the next one, and nobody reflects on what happened. This tool treats the agents that did the work as a workforce, grades them on the people-analytics battery (the mayor, spans and layers, title inflation, KTLO vs innovation, attrition, cost per head, the 80/20 of who delivers), and tells you the story of the run.
+
+Three layers:
+
+| Layer | Question | Doc |
+|---|---|---|
+| **Live dashboard** | What is my swarm doing right now and what is it costing? | [docs/dashboard.md](docs/dashboard.md) |
+| **Run Story** | What just happened, zoomed out, from epic to agent? | [docs/run-story.md](docs/run-story.md) |
+| **Benchmark** | How efficient was this swarm vs. the median for comparable work? | [docs/benchmark.md](docs/benchmark.md) |
+
+Existing benchmarks score the model. This scores the *organization of agents* that used it.
 
 > Status: design stage. This repo holds the metric model, the agent survey, the telemetry schema, and the go-to-market plan. The MCP server and Claude Code plugin are next.
 
@@ -75,10 +85,10 @@ Specific, hard goals beat "do your best." Scorecards should therefore set explic
 
 ## Roadmap
 
-- [ ] `v0.1` Metric spec, schema, survey, simulated swarm dataset
-- [ ] `v0.2` DuckDB loader + scorecard CLI + Plotly sunburst/mayor/Pareto
-- [ ] `v0.3` MCP server (`register_agent`, `report_activity`, `submit_survey`, `get_scorecard`)
-- [ ] `v0.4` Claude Code plugin + one-line install + shareable scorecard card
+- [x] `v0.1` Metric spec, schema (run-scoped), survey, dashboard / Run Story / benchmark specs
+- [ ] `v0.2` Simulated swarm dataset + DuckDB loader + Plotly sunburst/mayor/Pareto
+- [ ] `v0.3` MCP server (`register_agent`, `report_activity`, `submit_survey`, `get_scorecard`) + local live dashboard
+- [ ] `v0.4` Run Story generator + SEI + Claude Code plugin + shareable run card
 - [ ] `v0.5` OTel GenAI collector adapter
 - [ ] `v1.0` Anonymized benchmark ("how does your swarm compare")
 

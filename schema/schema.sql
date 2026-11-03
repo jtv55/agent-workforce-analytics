@@ -31,8 +31,23 @@ CREATE TABLE agent_version (
   recovered_at TIMESTAMP
 );
 
+-- One row per run: an epic, project, or session. All metrics can be scoped here.
+CREATE TABLE run (
+  run_id        TEXT PRIMARY KEY,
+  title         TEXT,
+  goal          TEXT,
+  outcome_unit  TEXT DEFAULT 'accepted_deliverable',  -- configurable
+  budget_usd    DOUBLE,
+  started_at    TIMESTAMP,
+  ended_at      TIMESTAMP,
+  sei           DOUBLE,                 -- Swarm Efficiency Index, set at run end
+  sei_version   TEXT,
+  story_md      TEXT                    -- generated Run Story
+);
+
 -- One row per task (trace)
 CREATE TABLE fact_task (
+  run_id       TEXT,
   task_id      TEXT PRIMARY KEY,
   root_agent_id TEXT,
   task_type    TEXT,
@@ -47,6 +62,7 @@ CREATE TABLE fact_task (
 
 -- One row per LLM call or tool call (OTel GenAI span)
 CREATE TABLE span (
+  run_id         TEXT,
   span_id        TEXT PRIMARY KEY,
   task_id        TEXT,
   agent_id       TEXT,
@@ -67,6 +83,7 @@ CREATE TABLE span (
 
 -- Who delegated to or messaged whom (mayor graph)
 CREATE TABLE edge (
+  run_id     TEXT,
   from_agent TEXT,
   to_agent   TEXT,
   task_id    TEXT,
